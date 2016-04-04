@@ -38,8 +38,7 @@ class AuthMe {
     /* HASH USADA */
     private $algorithm;
 
-    /* ESTA É A METODO CONSTRUTOR DA CLASSE *
-
+    /*
        PARAMETROS
        $db_host = Ip do seu banco de dados mysql;
        $db_user = Nome de usuario do seu banco de dados mysql.
@@ -64,12 +63,13 @@ class AuthMe {
         }
     }
 
-    /* METODO USADO PARA AUTENTICAR UM USUARIO
+    /* 
+       METODO USADO PARA AUTENTICAR UM USUARIO, RETORNA true CASO OS
+       DADOS ESTEJAM CORRETOS, CASO CONTRARIO RETORNA false.
 
        PARAMETROS
        $user = Nome de usuario.
        $pass = Senha do usuario.
-
     */
     public function authenticate($user, $pass) {
         $user = addslashes($user);
@@ -84,8 +84,9 @@ class AuthMe {
         }
     }
 
-    /* METODO USADO PARA REGISTRAR UM USUARIO
-
+    /* 
+       METODO USADO PARA REGISTRAR UM USUARIO
+       
        PARAMETROS
        $user = Nome de usuario.
        $pass = Senha do usuario.
@@ -102,12 +103,12 @@ class AuthMe {
         return mysqli_query($this->conection, "INSERT INTO {$this->authme_table} (`username`, `password`, `ip`, `lastlogin`, `x`, `y`, `z`) VALUES ('{$user}','{$pass}','{$ip}','0','0','0','0')");
     }
 
-    /* METODO USADO PARA ALTERAR A SENHA DE UM USUARIO
+    /* 
+       METODO USADO PARA ALTERAR A SENHA DE UM USUARIO
 
        PARAMETROS
        $user = Nome de usuario.
        $newpass = Nova senha do usuario.
-
     */
     public function changePassword($username, $newpass) {
         if (!self::isUsernameRegistered($username)) {
@@ -120,7 +121,8 @@ class AuthMe {
         return mysqli_query($this->conection, "UPDATE {$this->authme_table} SET password='$newpass' WHERE username='$username'");
     }
 
-    /* METODO USADO PARA VERIFICAR SE UM DETERMINADO IP ESTA REGISTRADO.
+    /* 
+       METODO USADO PARA VERIFICAR SE UM DETERMINADO IP ESTA REGISTRADO.
 
        PARAMETROS
        $ip = Ip que deseja verificar.
@@ -131,7 +133,8 @@ class AuthMe {
         return mysqli_num_rows($query) >= 1;
     }
 
-    /* METODO USADO PARA VERIFICAR SE UM DETERMINADO NOME DE USUARIO ESTA REGISTRADO.
+    /* 
+       METODO USADO PARA VERIFICAR SE UM DETERMINADO NOME DE USUARIO ESTA REGISTRADO.
 
        PARAMETROS
        $user = Nome de usuario que deseja verificar.
@@ -145,7 +148,6 @@ class AuthMe {
     /* METODOS PRIVADOS, USO SOMENTE DA CLASSE. */
     private function compare($pass, $hash_pass) {
         switch ($this->algorithm) {
-
             case "sha256":
                 $shainfo = explode("$", $hash_pass);
                 $pass = hash("sha256", $pass).$shainfo[2];
@@ -175,7 +177,6 @@ class AuthMe {
 
     private function AMHash($pass) {
         switch ($this->algorithm) {
-
             case "sha256":
                 $salt = self::createSalt();
                 return "\$SHA\$".$salt."\$".hash("sha256", hash('sha256', $pass).$salt);
