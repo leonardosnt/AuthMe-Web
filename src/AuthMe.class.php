@@ -48,8 +48,7 @@ class AuthMe
         $authme_table = Nome da tabela do authme;
         $algo = Tipo de hash que seu authme está utilizando;
     */
-    public function __construct($db_host, $db_user, $db_pass, $db_name, $authme_table, $algo)
-    {
+    public function __construct($db_host, $db_user, $db_pass, $db_name, $authme_table, $algo) {
         $this->authme_table = $authme_table;
         $this->algorithm    = $algo;
         @$this->conection = mysqli_connect($db_host, $db_user, $db_pass) or die(mysqli_connect_error());
@@ -57,8 +56,7 @@ class AuthMe
     }
 
     /* METODO DESTRUTOR, O CONTRARIO DO CONSTRUTOR '-' */
-    public function __destruct()
-    {
+    public function __destruct() {
         if (is_object($this->conection)) {
             $this->conection->close();
             unset($this->algorithm);
@@ -74,8 +72,7 @@ class AuthMe
         $user = Nome de usuario.
         $pass = Senha do usuario.
     */
-    public function authenticate($user, $pass)
-    {
+    public function authenticate($user, $pass) {
         $user  = addslashes($user);
         $query = mysqli_query($this->conection, "SELECT password FROM {$this->authme_table} WHERE username='{$user}'");
 
@@ -96,8 +93,7 @@ class AuthMe
         $pass = Senha do usuario.
         $ip = Ip do usuario.
     */
-    public function register($user, $pass, $ip = "0.0.0.0")
-    {
+    public function register($user, $pass, $ip = "0.0.0.0") {
         $user = addslashes($user);
         $pass = addslashes(self::AMHash($pass));
 
@@ -115,8 +111,7 @@ class AuthMe
         $user = Nome de usuario.
         $newpass = Nova senha do usuario.
     */
-    public function changePassword($username, $newpass)
-    {
+    public function changePassword($username, $newpass) {
         if (!self::isUsernameRegistered($username)) {
             return false;
         }
@@ -133,8 +128,7 @@ class AuthMe
         PARAMETROS
         $ip = Ip que deseja verificar.
     */
-    public function isIpRegistered($ip)
-    {
+    public function isIpRegistered($ip) {
         $ip    = addslashes($ip);
         $query = mysqli_query($this->conection, "SELECT ip FROM {$this->authme_table} WHERE ip='{$ip}'");
         return mysqli_num_rows($query) >= 1;
@@ -146,16 +140,14 @@ class AuthMe
         PARAMETROS
         $user = Nome de usuario que deseja verificar.
     */
-    public function isUsernameRegistered($user)
-    {
+    public function isUsernameRegistered($user) {
         $user  = addslashes($user);
         $query = mysqli_query($this->conection, "SELECT username FROM {$this->authme_table} WHERE username='{$user}'");
         return mysqli_num_rows($query) >= 1;
     }
 
     /* METODOS PRIVADOS, USO SOMENTE DA CLASSE. */
-    private function compare($pass, $hash_pass)
-    {
+    private function compare($pass, $hash_pass) {
         switch ($this->algorithm) {
             case self::SHA256:
                 $shainfo = explode("$", $hash_pass);
@@ -184,8 +176,7 @@ class AuthMe
         }
     }
 
-    private function AMHash($pass)
-    {
+    private function AMHash($pass) {
         switch ($this->algorithm) {
             case self::SHA256:
                 $salt = self::createSalt();
@@ -212,8 +203,7 @@ class AuthMe
         }
     }
 
-    private function createSalt()
-    {
+    private function createSalt() {
         $salt = "";
         for ($i = 0; $i < 20; $i++) {
             $salt .= rand(0, 9);
