@@ -19,8 +19,7 @@
  *  21/01/2015
  */
 
-class AuthMe
-{
+class AuthMe {
 
     /* TIPOS DE HASH DO AUTHME */
     const MD5 = "md5";
