@@ -92,7 +92,7 @@ class AuthMe {
         $pass = Senha do usuario.
         $ip = Ip do usuario.
     */
-    public function register($user, $pass, $ip = "0.0.0.0") {
+    public function register($user, $pass, $email = "your@email.com", $ip = "0.0.0.0") {
         $user = addslashes($user);
         $pass = addslashes(self::AMHash($pass));
 
@@ -100,7 +100,7 @@ class AuthMe {
             return false;
         }
 
-        return mysqli_query($this->conection, "INSERT INTO {$this->authme_table} (`username`, `password`, `ip`, `lastlogin`, `x`, `y`, `z`) VALUES ('{$user}','{$pass}','{$ip}','0','0','0','0')");
+        return mysqli_query($this->conection, "INSERT INTO {$this->authme_table} (`username`, `password`, `ip`, `lastlogin`, `x`, `y`, `z`, `email`) VALUES ('{$user}','{$pass}','{$ip}','0','0','0','0', '{$email}')");
     }
 
     /*
@@ -130,6 +130,17 @@ class AuthMe {
     public function isIpRegistered($ip) {
         $ip    = addslashes($ip);
         $query = mysqli_query($this->conection, "SELECT ip FROM {$this->authme_table} WHERE ip='{$ip}'");
+        return mysqli_num_rows($query) >= 1;
+    }
+    /*
+        METODO USADO PARA VERIFICAR SE UM DETERMINADO EMAIL ESTA REGISTRADO.
+
+        PARAMETROS
+        $email = E-mail que deseja verificar.
+    */
+    public function isEmailRegistered($email) {
+        $ip    = addslashes($ip);
+        $query = mysqli_query($this->conection, "SELECT email FROM {$this->authme_table} WHERE email='{$email}'");
         return mysqli_num_rows($query) >= 1;
     }
 
