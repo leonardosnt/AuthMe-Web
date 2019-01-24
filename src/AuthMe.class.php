@@ -19,205 +19,297 @@
  *  21/01/2015
  */
 
-class AuthMe {
+class AuthMe 
+{
 
-    /* TIPOS DE HASH DO AUTHME */
-    const MD5 = "md5";
-    const SHA256 = "sha256";
-    const SHA1 = "sha1";
-    const WHIRLPOOL = "whirlpool";
-    const MD5VB = "md5vb";
-    const PLAINTEXT = "plaintext";
-
-    /* CONEXÃO DO BANCO DE DADOS. */
-    private $conection;
-
-    /* NOME DA TASBELA DO AUTHME */
-    private $authme_table;
-
-    /* HASH USADA */
-    private $algorithm;
-
-    /*
-        PARAMETROS
-        $db_host = Ip do seu banco de dados mysql;
-        $db_user = Nome de usuario do seu banco de dados mysql.
-        $db_pass = Senha do seu banco de dados mysql;
-        $db_name = Nome do database do mysql;
-        $authme_table = Nome da tabela do authme;
-        $algo = Tipo de hash que seu authme está utilizando;
+    /** 
+        * Tipos de hash que o authme suporta
     */
-    public function __construct($db_host, $db_user, $db_pass, $db_name, $authme_table, $algo) {
-        $this->authme_table = $authme_table;
-        $this->algorithm    = $algo;
-        @$this->conection = mysqli_connect($db_host, $db_user, $db_pass) or die(mysqli_connect_error());
-        @mysqli_select_db($this->conection, $db_name) or die(mysqli_error($this->conection));
-    }
+    const MD5 = 'md5';
+    const SHA256 = 'sha256';
+    const SHA1 = 'sha1';
+    const WHIRLPOOL = 'whirlpool';
+    const MD5VB = 'md5vb';
+    const PLAINTEXT = 'plaintext';
 
-    /* METODO DESTRUTOR, O CONTRARIO DO CONSTRUTOR '-' */
-    public function __destruct() {
-        if (is_object($this->conection)) {
-            $this->conection->close();
-            unset($this->algorithm);
-            unset($this->authme_table);
+    private $connection, $authme_table, $algorithm;
+
+    /**
+        * Construtor responsavel por criar a conexão com o banco de dados
+        * @param string $db_host Host onde o MySQL se encontra
+        * @param string $db_user Usuário do MySQL
+        * @param string $db_pass Senha do MySQL
+        * @param string $authme_table Nome da tabela onde o authme está instalado
+        * @param string $algo Algoritmo usado no authme, por padrão o configurado é o SHA256
+    */
+    public function __construct($db_host, $db_user, $db_pass, $db_name, $authme_table, $algo = 'SHA256') 
+    {
+
+        $this->authme_table = $this->filter($authme_table);
+        $this->algorithm = $algo;
+        
+        try {
+
+            $this->connection = new PDO('mysql:host='.$db_host.';dbname='.$db_name.';charset=utf8;', $db_user, $db_pass);
+
+        } catch(PDOException $e) {
+
+            die('Ocorreu um erro ao criar a conexão com o banco de dados: '.$e->getMessage());
+
         }
+
+
     }
 
-    /*
-        METODO USADO PARA AUTENTICAR UM USUARIO, RETORNA true CASO OS
-        DADOS ESTEJAM CORRETOS, CASO CONTRARIO RETORNA false.
-
-        PARAMETROS
-        $user = Nome de usuario.
-        $pass = Senha do usuario.
+    /**
+        * Destroi a instancia da classe
     */
-    public function authenticate($user, $pass) {
-        $user  = addslashes($user);
-        $query = mysqli_query($this->conection, "SELECT password FROM {$this->authme_table} WHERE username='{$user}'");
+    public function __destruct() 
+    {
 
-        if (mysqli_num_rows($query) == 1) {
-            $ret       = mysqli_fetch_array($query);
-            $hash_pass = $ret[0];
+        $this->connection = null;
+        unset($this->algorithm);
+        unset($this->authme_table);
+        
+    }
+
+    /**
+        * Verifica se o usuário e a senha estão corretos
+        * @param string $user Nome do jogador
+        * @param string $pass Senha do jogador
+        * @return boolean true|false true em caso de sucesso
+    */
+    public function authenticate($user, $pass) 
+    {
+
+        $stmt = $this->connection->prepare("SELECT password FROM {$this->authme_table} WHERE username = ?");
+        $stmt->execute([$this->filter[$user]]);
+
+        if($stmt->rowCount() > 0) {
+
+            $data = $stmt->fetch();
+
+            $hash_pass = $data['password'];
             return self::compare($pass, $hash_pass);
-        } else {
-            return false;
-        }
-    }
 
-    /*
-        METODO USADO PARA REGISTRAR UM USUARIO
-
-        PARAMETROS
-        $user = Nome de usuario.
-        $pass = Senha do usuario.
-        $ip = Ip do usuario.
-    */
-    public function register($user, $pass, $email = "your@email.com", $ip = "0.0.0.0") {
-        $user = addslashes($user);
-        $pass = addslashes(self::AMHash($pass));
-
-        if (self::isUsernameRegistered($user)) {
-            return false;
         }
 
-        return mysqli_query($this->conection, "INSERT INTO {$this->authme_table} (`username`, `password`, `ip`, `lastlogin`, `x`, `y`, `z`, `email`) VALUES ('{$user}','{$pass}','{$ip}','0','0','0','0', '{$email}')");
+        return false;
+
     }
 
-    /*
-        METODO USADO PARA ALTERAR A SENHA DE UM USUARIO
-
-        PARAMETROS
-        $user = Nome de usuario.
-        $newpass = Nova senha do usuario.
+    /**
+        * Registra um novo jogador
+        * @param string $user Nick do jogador
+        * @param string $pass Senha do jogador
+        * @param string $email Email do jogador
+        * @param string $ip IP do jogador, por padrão definido como '0.0.0.0'
+        * @return boolean true|false verdadeiro caso o registro seja bem sucedido, false caso o email já esteja registrado
     */
-    public function changePassword($username, $newpass) {
-        if (!self::isUsernameRegistered($username)) {
-            return false;
-        }
+    public function register($user, $pass, $email = 'your@email.com', $ip = '0.0.0.0') 
+    {
 
-        $username = addslashes($username);
-        $newpass  = addslashes(self::AMHash($newpass));
+        $user = $this->filter($user);
+        $pass = $this->filter(self::AMHash($pass));
+        $email = $this->filter($email);
 
-        return mysqli_query($this->conection, "UPDATE {$this->authme_table} SET password='$newpass' WHERE username='$username'");
+        if(self::isUsernameRegistered($user)) return false;
+
+        $stmt = $this->connection->prepare("INSERT INTO {$this->authme_table} (username, password, ip, lastlogin, x, y, z, email) VALUES(?, ?, ?, 0, 0, 0, 0, ?)");
+
+        $stmt->execute([
+            $user,
+            $pass,
+            $ip,
+            $email
+        ]);
+
+        return true;
+        
     }
 
-    /*
-        METODO USADO PARA VERIFICAR SE UM DETERMINADO IP ESTA REGISTRADO.
-
-        PARAMETROS
-        $ip = Ip que deseja verificar.
+    /**
+        * Altera a senha do jogador
+        * @param string $username Usuário do jogador
+        * @param string $newpass Nova senha do jogador
+        * @return boolean true|false falso caso o jogador não exista e true caso não haja problema na alteração de senha
     */
-    public function isIpRegistered($ip) {
-        $ip    = addslashes($ip);
-        $query = mysqli_query($this->conection, "SELECT ip FROM {$this->authme_table} WHERE ip='{$ip}'");
-        return mysqli_num_rows($query) >= 1;
-    }
-    /*
-        METODO USADO PARA VERIFICAR SE UM DETERMINADO EMAIL ESTA REGISTRADO.
+    public function changePassword($username, $newpass) 
+    {
 
-        PARAMETROS
-        $email = E-mail que deseja verificar.
+        if (!self::isUsernameRegistered($username)) return false;
+
+        $username = $this->filter($username);
+        $newpass = $this->filter(self::AMHash($newpass));
+
+        $stmt = $this->connection->prepare("UPDATE {$this->authme_table} SET password = ? WHERE username = ?");
+        $stmt->execute([$newpass, $username]);
+        
+        return true;
+
+    }
+
+    /**
+        * Verifica se um endereço IP já está registrado
+        * @param string $ip IP
+        * @return boolean true|false verdadeiro caso o IP já exista e falso caso não exista
     */
-    public function isEmailRegistered($email) {
-        $ip    = addslashes($ip);
-        $query = mysqli_query($this->conection, "SELECT email FROM {$this->authme_table} WHERE email='{$email}'");
-        return mysqli_num_rows($query) >= 1;
+    public function isIpRegistered($ip) 
+    {
+
+        $ip  = $this->filter($ip);
+        $stmt = $this->connection->prepare("SELECT ip FROM {$this->authme_table} WHERE ip = ?");
+        $stmt->execute([$ip]);
+
+        return ($stmt->rowCount() > 0) ? true : false;
+
     }
 
-    /*
-        METODO USADO PARA VERIFICAR SE UM DETERMINADO NOME DE USUARIO ESTA REGISTRADO.
-
-        PARAMETROS
-        $user = Nome de usuario que deseja verificar.
+    /**
+        * Verifica se o email já existe
+        * @param string $email Email a ser verificado
+        * @return boolean true|false verdadeiro caso email já exista
     */
-    public function isUsernameRegistered($user) {
-        $user  = addslashes($user);
-        $query = mysqli_query($this->conection, "SELECT username FROM {$this->authme_table} WHERE username='{$user}'");
-        return mysqli_num_rows($query) >= 1;
+    public function isEmailRegistered($email) 
+    {
+
+        $email = $this->filter($email);
+
+        $stmt = $this->connection->prepare("SELECT email FROM {$this->authme_table} WHERE email = ?");
+        $stmt->execute([$email]);
+
+        return ($stmt->rowCount() > 0) ? true : false;
+
     }
 
-    /* METODOS PRIVADOS, USO SOMENTE DA CLASSE. */
-    private function compare($pass, $hash_pass) {
+    /**
+        * Verifica se o usuário já está registrado
+        * @param string $user Usuario a ser verificado
+        * @return boolean true|false verdadeiro caso email já exista
+    */
+    public function isUsernameRegistered($user) 
+    {
+
+        $user = $this->filter($user);
+
+        $stmt = $this->connection->prepare("SELECT username FROM {$this->authme_table} WHERE username = ?");
+        $stmt->execute([$user]);
+
+        return ($stmt->rowCount() > 0) ? true : false;
+
+    }
+
+    /**
+        * Compara as senhas
+        * @param string $pass Senha inserida pelo usuário
+        * @param string $hash_pass Hash vinda do banco de dados 
+        * @access private  
+        * @return boolean true|false Verdadeiro caso a senha senha valida, falso se for invalida
+    */
+    private function compare($pass, $hash_pass) 
+    {
+
         switch ($this->algorithm) {
+
             case self::SHA256:
-                $shainfo = explode("$", $hash_pass);
-                $pass    = hash("sha256", $pass) . $shainfo[2];
-                return strcasecmp($shainfo[3], hash('sha256', $pass)) == 0;
+            $shainfo = explode('$', $hash_pass);
+            $pass = hash('sha256', $pass) . $shainfo[2];
+            return strcasecmp($shainfo[3], hash('sha256', $pass)) == 0;
 
             case self::SHA1:
-                return strcasecmp($hash_pass, hash('sha1', $pass)) == 0;
+            return strcasecmp($hash_pass, hash('sha1', $pass)) == 0;
 
             case self::MD5:
-                return strcasecmp($hash_pass, hash('md5', $pass)) == 0;
+            return strcasecmp($hash_pass, hash('md5', $pass)) == 0;
 
             case self::WHIRLPOOL:
-                return strcasecmp($hash_pass, hash('whirlpool', $pass)) == 0;
+            return strcasecmp($hash_pass, hash('whirlpool', $pass)) == 0;
 
             case self::MD5VB:
-                $shainfo = explode("$", $hash_pass);
-                $pass    = hash("md5", $pass) . $shainfo[2];
-                return strcasecmp($shainfo[3], hash('md5', $pass)) == 0;
+            $shainfo = explode('$', $hash_pass);
+            $pass = hash('md5', $pass) . $shainfo[2];
+            return strcasecmp($shainfo[3], hash('md5', $pass)) == 0;
 
             case self::PLAINTEXT:
-                return $hash_pass == $pass;
+            return $hash_pass == $pass;
 
             default:
-                return false;
+            return false;
+
         }
+
     }
 
-    private function AMHash($pass) {
+    /**
+        * Gera a hash da senha
+        * @param string $pass Senha inserida pelo usuário
+        * @access private  
+        * @return string|null String contendo a hash ou null em caso de erro
+    */
+    private function AMHash($pass) 
+    {
+
         switch ($this->algorithm) {
+
             case self::SHA256:
-                $salt = self::createSalt();
-                return "\$SHA\$" . $salt . "\$" . hash("sha256", hash('sha256', $pass) . $salt);
+            $salt = self::createSalt();
+            return "\$SHA\$".$salt."\$" . hash('sha256', hash('sha256', $pass) . $salt);
 
             case self::SHA1:
-                return hash("sha1", $pass);
+            return hash('sha1', $pass);
 
             case self::MD5:
-                return hash("md5", $pass);
+            return hash('md5', $pass);
 
             case self::WHIRLPOOL:
-                return hash("whirlpool", $pass);
+            return hash('whirlpool', $pass);
 
             case self::MD5VB:
-                $salt = self::createSalt();
-                return "\$MD5vb\$" . $salt . "\$" . hash("md5", hash('md5', $pass) . $salt);
+            $salt = self::createSalt();
+            return "\$MD5vb\$" . $salt . "\$" . hash('md5', hash('md5', $pass) . $salt);
 
             case self::PLAINTEXT:
-                return $pass;
+            return $pass;
 
             default:
-                return null;
+            return null;
+
         }
+
     }
 
-    private function createSalt() {
-        $salt = "";
+    /**
+        * Cria um salt aleatório
+        * @access private
+        * @return string Salt
+    */
+    private function createSalt() 
+    {
+
+        $salt = '';
+
         for ($i = 0; $i < 20; $i++) {
             $salt .= rand(0, 9);
         }
-        return substr(hash("sha1", $salt), 0, 16);
+
+        return substr(hash('sha1', $salt), 0, 16);
+
     }
+
+    /**
+        * Trata o valor para prevenção de SQL-I
+        * @param string $value Valor a ser filtrado
+        * @access private
+        * @return string Valor filtrado
+    */
+    private function filter($value)
+    {
+
+        $value = htmlspecialchars($value);
+        $value = addslashes($value);
+
+        return $value;
+
+    }
+
 }
